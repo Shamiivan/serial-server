@@ -15,7 +15,7 @@ struct MotorMessage {
 };
 
 int main() {
-  SerialPort port("/dev/ttyUSB0");
+  SerialPort port("/dev/ttyTHS1");
 
   if (!port.isOpen()) {
     std::cerr << "Failed to open port: " << port << std::endl;
@@ -27,16 +27,18 @@ int main() {
 
   std::cout << "Sending: " << msg.left_torque << " " << msg.right_torque << std::endl;
 
-  char res2[1024];
+  //char res2[1024];
+  //int res2;
 
   while (true) {
-    port.receive(&res2, 1024);
-    port.send(&msg, sizeof(msg));
-
-    std::cout << res2 << std::endl;
-    // std::cout << "Received: " << res.roll << " " << res.ang_vel << std::endl;
+    port.receive(&res, sizeof(res));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    port.send(reinterpret_cast<const char*>(&msg), sizeof(msg));
+
+    //std::cout << res2 << std::endl;
+    std::cout << " Received: " << res.roll << " " << res.ang_vel << std::endl;
+
   }
 
   return 0;

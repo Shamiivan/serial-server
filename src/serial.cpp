@@ -14,7 +14,6 @@ SerialPort::SerialPort(const std::string &portName) : m_port_name(portName), m_s
     printf("Error %i from open: %s\n", errno, strerror(errno));
     return;
   }
-
   // Create new termios struct, we call it 'tty' for convention
   termios tty;
 
@@ -50,7 +49,7 @@ SerialPort::SerialPort(const std::string &portName) : m_port_name(portName), m_s
    * (NOT PRESENT ON LINUX) */
 
   tty.c_cc[VTIME] = 0;
-  tty.c_cc[VMIN] = 16;
+  tty.c_cc[VMIN] = 32;
 
   // Set in/out baud rate to be 9600
   cfsetispeed(&tty, B115200);
@@ -69,7 +68,7 @@ SerialPort::~SerialPort() {
   }
 }
 
-void SerialPort::send(const void *data, size_t size) {
+void SerialPort::send(const char *data, size_t size) {
   if (m_serial_port == -1) {
     printf("Attempting to send, but serial port is not open\n");
     return;
@@ -78,21 +77,37 @@ void SerialPort::send(const void *data, size_t size) {
   write(m_serial_port, data, size);
 }
 
-void SerialPort::receive(void *data, size_t maxSize) {
+void SerialPort::receive(void *data, size_t msg_size) {
   if (m_serial_port == -1) {
     printf("Attempting to receive, but serial port is not open\n");
     return;
   }
 
-  size_t num_bytes = read(m_serial_port, data, maxSize);
+  uint8_t buffer[(msg_size + 1) * 2];
+  size_t index = 0;
 
-  // n is the number of bytes read. n may be 0 if no bytes were received, and can also be -1 to signal an error.
-  if (num_bytes < 0) {
-    printf("Error reading: %s", strerror(errno));
+  memset(&buffer, '\0', sizeof(buffer));
+
+  size_t num_bytes = read(m_serial_port, buffer, sizeof(buffer));
+  printf("size of pay : %ld \n", num_bytes);
+
+  // n is the number of bytes read. n may be 0 if no bytes were received, and can also
+  if (num_bytes < 0)
     return;
+
+  // if we don't have any bytes, keep waiting
+  if (num_bytes == 0)
+    return;
+
+  while (buffer[index] != 0x7E) {
+    index++;
+
+    if (index > num_bytes) {
+      break;
+    }
   }
 
-  return;
+  memcpy(data, buffer + index + 1, msg_size);
 }
 
 std::ostream &operator<<(std::ostream &os, const SerialPort &port) {

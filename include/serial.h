@@ -8,7 +8,7 @@ public:
 
   bool isOpen() const { return m_serial_port != -1; }
 
-  void send(const void *data, size_t size);
+  void send(const char *data, size_t size);
   void receive(void *data, size_t maxSize);
 
   friend std::ostream &operator<<(std::ostream &os, const SerialPort &port);
