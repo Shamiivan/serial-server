@@ -7,51 +7,95 @@
 #include <cstring>
 #include <string>
 
-SerialPort::SerialPort(const char* portName) : fd(-1) {
+SerialPort::SerialPort(const std::string &portName) : m_port_name(portName), m_serial_port(-1) {
   // Open the serial port
-  fd = open(portName, O_RDWR | O_NOCTTY | O_NDELAY);
-  if (fd == -1) {
+  m_serial_port = open(m_port_name.c_str(), O_RDWR);
+  if (m_serial_port == -1) {
+    printf("Error %i from open: %s\n", errno, strerror(errno));
     return;
   }
 
-  // Configure the serial port
-  termios options;
-  tcgetattr(fd, &options);
+  // Create new termios struct, we call it 'tty' for convention
+  termios tty;
 
-  // Set baud rates to 9600cfsetispeed(&options, B9600);
-  cfsetospeed(&options, B9600);
+  // Read in existing settings, and handle any error
+  if (tcgetattr(m_serial_port, &tty) != 0) {
+    printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+    return;
+  }
 
-  // 8N1 mode
-  options.c_cflag &= ~PARENB;  // No parity
-  options.c_cflag &= ~CSTOPB;  // 1 stop bit
-  options.c_cflag &= ~CSIZE;
-  options.c_cflag |= CS8;  // 8 data bits// Raw input/output
-  options.c_iflag &= ~(ICRNL | INLCR | IGNCR | IXON | IXOFF | IXANY);
-  options.c_oflag &= ~OPOST;
+  tty.c_cflag &= ~PARENB;        // Clear parity bit, disabling parity (most common)
+  tty.c_cflag &= ~CSTOPB;        // Clear stop field, only one stop bit used in
+                                 // communication (most common)
+  tty.c_cflag &= ~CSIZE;         // Clear all bits that set the data size
+  tty.c_cflag |= CS8;            // 8 bits per byte (most common)
+  tty.c_cflag &= ~CRTSCTS;       // Disable RTS/CTS hardware flow control (most common)
+  tty.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines (CLOCAL = 1)
 
-  // Set the new attributestcsetattr(fd, TCSANOW, &options);
+  tty.c_lflag &= ~ICANON;
+  tty.c_lflag &= ~ECHO;                   // Disable echo
+  tty.c_lflag &= ~ECHOE;                  // Disable erasure
+  tty.c_lflag &= ~ECHONL;                 // Disable new-line echo
+  tty.c_lflag &= ~ISIG;                   // Disable interpretation of INTR, QUIT and SUSP
+  tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
+  tty.c_iflag &=
+      ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL); // Disable any special handling of received bytes
+
+  tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes
+                         // (e.g. newline chars)
+  tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
+  /* tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT
+   * PRESENT ON LINUX)  */
+  /* tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output
+   * (NOT PRESENT ON LINUX) */
+
+  tty.c_cc[VTIME] = 0;
+  tty.c_cc[VMIN] = 16;
+
+  // Set in/out baud rate to be 9600
+  cfsetispeed(&tty, B115200);
+  cfsetospeed(&tty, B115200);
+
+  // Save tty settings, also checking for error
+  if (tcsetattr(m_serial_port, TCSANOW, &tty) != 0) {
+    printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+    return;
+  }
 }
 
 SerialPort::~SerialPort() {
-  if (fd != -1) {
-    close(fd);
+  if (m_serial_port != -1) {
+    close(m_serial_port);
   }
 }
 
-void SerialPort::send(const std::string& data) {
-  if (fd != -1) {
-    write(fd, data.c_str(), data.size());
+void SerialPort::send(const void *data, size_t size) {
+  if (m_serial_port == -1) {
+    printf("Attempting to send, but serial port is not open\n");
+    return;
   }
+
+  write(m_serial_port, data, size);
 }
 
-std::string SerialPort::receive(size_t maxSize) {
-  if (fd == -1) return "";
-
-  char buffer[maxSize];
-  ssize_t bytesRead = read(fd, buffer, maxSize - 1);
-  if (bytesRead > 0) {
-    buffer[bytesRead] =
-        '\0';  // Null-terminate the stringreturn std::string(buffer);
+void SerialPort::receive(void *data, size_t maxSize) {
+  if (m_serial_port == -1) {
+    printf("Attempting to receive, but serial port is not open\n");
+    return;
   }
-  return "";
+
+  size_t num_bytes = read(m_serial_port, data, maxSize);
+
+  // n is the number of bytes read. n may be 0 if no bytes were received, and can also be -1 to signal an error.
+  if (num_bytes < 0) {
+    printf("Error reading: %s", strerror(errno));
+    return;
+  }
+
+  return;
+}
+
+std::ostream &operator<<(std::ostream &os, const SerialPort &port) {
+  os << std::string("SerialPort");
+  return os;
 }

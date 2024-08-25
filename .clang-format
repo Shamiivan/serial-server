@@ -1,0 +1,5 @@
+﻿BasedOnStyle: LLVM
+AlignAfterOpenBracket: AlwaysBreak
+AllowAllArgumentsOnNextLine: 'true'
+ColumnLimit: '120'
+SortIncludes: 'true'

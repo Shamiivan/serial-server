@@ -1,15 +1,19 @@
+#include <iostream>
 #include <string>
 
 class SerialPort {
- public:
-  SerialPort(const char* portName);
+public:
+  SerialPort(const std::string &portName);
   ~SerialPort();
 
-  bool isOpen() const { return fd != -1; }
+  bool isOpen() const { return m_serial_port != -1; }
 
-  void send(const std::string& data);
-  std::string receive(size_t maxSize = 256);
+  void send(const void *data, size_t size);
+  void receive(void *data, size_t maxSize);
 
- private:
-  int fd;
+  friend std::ostream &operator<<(std::ostream &os, const SerialPort &port);
+
+private:
+  int m_serial_port;
+  std::string m_port_name;
 };
